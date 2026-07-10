@@ -63,7 +63,15 @@ the USB cable to reset it out of Wacom mode.
 ## Status / roadmap
 
 - [x] **M0** — reverse the protocol from live hardware (done; see PROTOCOL.md)
-- [~] **M1** — pressure pen: position, pressure, proximity, tip + barrel buttons
-- [ ] **M2** — tilt tuning, 4-point calibration, pressure curve
-- [ ] **M3** — ExpressKeys, Touch Strips, rocker (parsed already; actions TODO)
+- [x] **M1** — pressure pen: position, pressure, tilt, proximity, tip + barrel buttons
+- [x] **M3** — ExpressKeys + Touch Strips → configurable actions (see below)
+- [ ] **M2** — 4-point calibration + pressure curve
 - [ ] **M4** — LaunchAgent packaging + hot-plug handling
+- [ ] eraser support (tool-type from the proximity packet)
+
+### ExpressKeys / Touch Strips
+
+Buttons are `L1`–`L8` (left, top→bottom), `R1`–`R8` (right), `LT`/`RT` (center
+toggles). Defaults put ZBrush-style modifiers (Space/Shift/Ctrl/Alt) on `L5`–`L8`.
+Customize via `WACOM_DUMP_CONFIG=1 .build/release/wacomd > ~/.config/wacomd/pad.json`,
+then edit. `WACOM_IDENTIFY=1` prints each control's ID as you press it.

@@ -61,21 +61,26 @@ Notes:
 
 ## Pad report (ID `0x0c`) — ExpressKeys & Touch Strips
 
-Format `0c 00 d2 d3 d4 d5 d6 d7 d8 d9`. Confirmed live:
+Report is `0c d1 d2 d3 d4 d5 d6 d7 d8 d9`. Fully decoded from a timestamped,
+labelled capture (8 ExpressKeys per side, a center toggle per side, two Touch
+Strips):
 
 ```
-ExpressKeys = bitmask spread across d[3] and d[4]
-  d[3] bits seen: 0x01 0x02 0x04 0x10   (one bezel column)
-  d[4] bits seen: 0x01 0x04 0x08 0x20 0x40 0x80  (other bezel column)
-Touch Strips:
-  d[8] = one strip's absolute finger position (values 0x00..0x08+ seen while sliding)
-  d[9] = the other strip's position
+Left ExpressKeys   = d[6]  bitmask, bit 0 = top … bit 7 = bottom (L1..L8)
+Right ExpressKeys  = d[8]  bitmask, bit 0 = top … bit 7 = bottom (R1..R8)
+Left  center toggle = d[5] & 0x01
+Right center toggle = d[7] & 0x01
+Left  Touch Strip  = one-hot position across the 16-bit field (d[1] << 8 | d[2])
+Right Touch Strip  = one-hot position across the 16-bit field (d[3] << 8 | d[4])
 ```
 
-Exact per-key bit → physical-button mapping and the full strip value range should
-be finalised by pressing each key/strip one at a time and logging (a labelled
-capture pass). The structure above is confirmed; the exhaustive bit map is the
-only remaining detail.
+Each ExpressKey is a single bit; multiple keys can be held (bits OR together).
+Each Touch Strip reports finger position as a single one-hot bit that walks
+across d1:d2 (left) or d3:d4 (right) — ~13 usable zones; the bit index decreases
+as the finger moves toward the top of the strip. `0` = finger off.
+
+Note: sequential key presses look identical to a strip's one-hot sweep in an
+unlabelled dump — timing (pauses between groups) is what disambiguates them.
 
 ## Cross-check
 

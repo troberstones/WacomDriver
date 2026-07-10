@@ -16,10 +16,14 @@ struct PenSample {
     var barrel2: Bool
 }
 
+// Reverse-engineered from a timestamped labelled capture of the DTK-2100.
 struct PadSample {
-    var keyBits: UInt16 // ExpressKey bitmask (d3 low byte, d4 high byte)
-    var strip1: Int     // touch strip position (d8)
-    var strip2: Int     // touch strip position (d9)
+    var leftKeys: UInt8   // d6, bit 0 = top … bit 7 = bottom (L1..L8)
+    var rightKeys: UInt8  // d8, bit 0 = top … bit 7 = bottom (R1..R8)
+    var leftToggle: Bool  // d5 bit 0
+    var rightToggle: Bool // d7 bit 0
+    var leftStrip: Int    // one-hot position across d1:d2, 0..15 (-1 = untouched)
+    var rightStrip: Int   // one-hot position across d3:d4, 0..15 (-1 = untouched)
 }
 
 enum WacomReport {
@@ -71,7 +75,18 @@ enum WacomProtocol {
     }
 
     private static func parsePad(_ d: [UInt8]) -> WacomReport {
-        let bits = UInt16(d[3]) | (UInt16(d[4]) << 8)
-        return .pad(PadSample(keyBits: bits, strip1: Int(d[8]), strip2: Int(d[9])))
+        // Strip position is a one-hot bit across a 16-bit field; return the set
+        // bit's index (highest if a transition briefly sets two), or -1 if off.
+        func oneHot(_ hi: UInt8, _ lo: UInt8) -> Int {
+            let v = (UInt16(hi) << 8) | UInt16(lo)
+            return v == 0 ? -1 : 15 - v.leadingZeroBitCount
+        }
+        return .pad(PadSample(
+            leftKeys: d[6],
+            rightKeys: d[8],
+            leftToggle: d[5] & 0x01 != 0,
+            rightToggle: d[7] & 0x01 != 0,
+            leftStrip: oneHot(d[1], d[2]),
+            rightStrip: oneHot(d[3], d[4])))
     }
 }

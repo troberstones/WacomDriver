@@ -36,7 +36,12 @@ final class EventInjector {
     private var inProximity = false
     private var lastPoint = CGPoint.zero
 
-    init(calibration: Calibration) { self.cal = calibration }
+    private let mods: SharedModifiers
+
+    init(calibration: Calibration, mods: SharedModifiers) {
+        self.cal = calibration
+        self.mods = mods
+    }
 
     // MARK: proximity
 
@@ -75,9 +80,17 @@ final class EventInjector {
             setButton(.left, down: false, at: p, pressure: 0, sample: s)
         }
 
-        // Barrel buttons (secondary / middle).
-        applyBarrel(s.barrel1, state: &barrel1Down, button: .right, at: p, s: s)
-        applyBarrel(s.barrel2, state: &barrel2Down, button: .center, at: p, s: s)
+        // Barrel buttons (secondary / middle). Update state BEFORE posting: the
+        // posted event reads the button state via currentButtonMask(), so we must
+        // not hold an exclusive (inout) access across the call.
+        if s.barrel1 != barrel1Down {
+            barrel1Down = s.barrel1
+            setButton(.right, down: s.barrel1, at: p, pressure: 0, sample: s)
+        }
+        if s.barrel2 != barrel2Down {
+            barrel2Down = s.barrel2
+            setButton(.center, down: s.barrel2, at: p, pressure: 0, sample: s)
+        }
 
         // Motion: choose the drag/move type based on what's held.
         let type: CGEventType
@@ -90,10 +103,6 @@ final class EventInjector {
         postMouse(type: type, button: button, at: p, pressure: tipDown ? pressure : 0, sample: s)
     }
 
-    private func applyBarrel(_ pressed: Bool, state: inout Bool, button: CGMouseButton, at p: CGPoint, s: PenSample) {
-        if pressed && !state { state = true;  setButton(button, down: true,  at: p, pressure: 0, sample: s) }
-        else if !pressed && state { state = false; setButton(button, down: false, at: p, pressure: 0, sample: s) }
-    }
 
     // MARK: CGEvent construction
 
@@ -130,6 +139,9 @@ final class EventInjector {
             e.setDoubleValueField(.tabletEventTiltX, value: Double(s.tiltX) / 64.0)
             e.setDoubleValueField(.tabletEventTiltY, value: -Double(s.tiltY) / 64.0)
         }
+        // Stamp held modifiers (from ExpressKeys) onto pen events so hold-Shift
+        // affects drawing, and so a chord's modifier never lingers.
+        e.flags = mods.flags
         e.post(tap: .cghidEventTap)
     }
 

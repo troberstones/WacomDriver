@@ -17,14 +17,23 @@ import CoreGraphics
 
 setvbuf(stdout, nil, _IOLBF, 0)
 
+// Print a config template and exit.
+if ProcessInfo.processInfo.environment["WACOM_DUMP_CONFIG"] == "1" {
+    print(PadConfig.defaults.jsonString())
+    exit(0)
+}
+
 let WACOM_VID = 0x056a
 let DTK2100_PID = 0x00cc
 let INPUT_BUFFER_SIZE = 64
 let DEBUG = ProcessInfo.processInfo.environment["WACOM_DEBUG"] == "1"
+let IDENTIFY = ProcessInfo.processInfo.environment["WACOM_IDENTIFY"] == "1"
 
 // File-scope state, mutated only on the run-loop thread (HID callbacks fire there).
 let calibration = Calibration()
-nonisolated(unsafe) let injector = EventInjector(calibration: calibration)
+nonisolated(unsafe) let sharedModifiers = SharedModifiers()
+nonisolated(unsafe) let injector = EventInjector(calibration: calibration, mods: sharedModifiers)
+nonisolated(unsafe) let padHandler = PadHandler(config: PadConfig.load(), mods: sharedModifiers)
 nonisolated(unsafe) let reportBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: INPUT_BUFFER_SIZE)
 nonisolated(unsafe) var seizedDevice: IOHIDDevice?
 
@@ -49,14 +58,14 @@ let inputReportCallback: IOHIDReportCallback = { _, result, _, _, _, report, rep
         if DEBUG {
             print("pen x=\(s.x) y=\(s.y) p=\(s.pressure) tilt=(\(s.tiltX),\(s.tiltY)) b1=\(s.barrel1) b2=\(s.barrel2)")
         }
-        injector.handle(s)
+        if !IDENTIFY { injector.handle(s) }
     case .proximityIn:
-        injector.enterProximity()
+        if !IDENTIFY { injector.enterProximity() }
     case .proximityOut:
-        injector.leaveProximity()
+        if !IDENTIFY { injector.leaveProximity() }
     case .pad(let pad):
-        if DEBUG { print("pad keys=0x\(String(pad.keyBits, radix: 16)) strip1=\(pad.strip1) strip2=\(pad.strip2)") }
-        // ExpressKeys / Touch Strips: wired up in Milestone 3.
+        if DEBUG { print("pad L=0x\(String(pad.leftKeys, radix: 16)) R=0x\(String(pad.rightKeys, radix: 16)) LT=\(pad.leftToggle) RT=\(pad.rightToggle) lStrip=\(pad.leftStrip) rStrip=\(pad.rightStrip)") }
+        padHandler.handle(pad)
     case .other:
         break
     }

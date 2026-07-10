@@ -38,6 +38,12 @@ let modeSwitchCandidates: [(id: Int, bytes: [UInt8])] = [
 nonisolated(unsafe) let reportBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: INPUT_BUFFER_SIZE)
 nonisolated(unsafe) var reportCount = 0
 
+// WACOM_PAD=1 → only show pad reports (ID 0x0c), decoded, de-duped so each
+// press/slide prints once. Used to label the ExpressKey / Touch Strip map.
+let padOnly = ProcessInfo.processInfo.environment["WACOM_PAD"] == "1"
+nonisolated(unsafe) var lastPadLine = ""
+nonisolated(unsafe) var padStart: Date? = nil
+
 func hex(_ ptr: UnsafePointer<UInt8>, _ len: Int) -> String {
     (0..<len).map { String(format: "%02x", ptr[$0]) }.joined(separator: " ")
 }
@@ -45,8 +51,21 @@ func hex(_ ptr: UnsafePointer<UInt8>, _ len: Int) -> String {
 // Fired for every raw input report once the device is in Wacom mode.
 let inputReportCallback: IOHIDReportCallback = { _, result, _, type, reportID, report, reportLength in
     guard result == kIOReturnSuccess else { return }
-    reportCount += 1
     let len = Int(reportLength)
+
+    if padOnly {
+        guard len >= 10, report[0] == 0x0c else { return }
+        // Show ALL bytes (d1..d9) so we can find which byte a control uses.
+        let raw = (1..<len).map { String(format: "%02x", report[$0]) }.joined(separator: " ")
+        guard raw != lastPadLine else { return } // collapse repeats while held
+        lastPadLine = raw
+        if padStart == nil { padStart = Date() }
+        let t = Date().timeIntervalSince(padStart!)
+        print(String(format: "[%6.2fs] d1..d9: %@", t, raw))
+        return
+    }
+
+    reportCount += 1
     print(String(format: "[#%05d] id=%2d len=%2d  %@",
                  reportCount, reportID, len, hex(report, len)))
 }
