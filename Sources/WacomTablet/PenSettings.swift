@@ -46,8 +46,6 @@ struct PenConfig: Codable {
     var affine: [Double]? = nil
     var tabletMaxX = 87200.0
     var tabletMaxY = 65600.0
-    var pressure = PressureCurve.linear
-    var pressureGamma = 1.0   // UI slider position; drives `pressure`
 
     static func path() -> String {
         if let p = ProcessInfo.processInfo.environment["WACOM_PEN_CONFIG"] { return p }

@@ -12,16 +12,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = NSImage(systemSymbolName: "pencil.tip", accessibilityDescription: "WacomTablet")
+        model.onCalibrate = { [weak self] in self?.runCalibration() }
+        model.onProfilesChanged = { [weak self] in self?.rebuildMenu() }
+        rebuildMenu()
+    }
 
+    private func rebuildMenu() {
         let menu = NSMenu()
+
+        // Profiles submenu.
+        let profilesItem = NSMenuItem(title: "Profile", action: nil, keyEquivalent: "")
+        let profilesMenu = NSMenu()
+        for p in model.store.profiles {
+            let item = NSMenuItem(title: p.name, action: #selector(selectProfile(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = p.name
+            item.state = (p.name == model.store.activeName) ? .on : .off
+            profilesMenu.addItem(item)
+        }
+        profilesMenu.addItem(.separator())
+        let newItem = NSMenuItem(title: "New Profile", action: #selector(newProfile), keyEquivalent: "")
+        newItem.target = self
+        profilesMenu.addItem(newItem)
+        profilesItem.submenu = profilesMenu
+        menu.addItem(profilesItem)
+
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         menu.addItem(withTitle: "Calibrate…", action: #selector(runCalibration), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q")
-        menu.items.forEach { $0.target = self }
+        menu.items.forEach { if $0.action != nil { $0.target = self } }
         statusItem.menu = menu
+    }
 
-        model.onCalibrate = { [weak self] in self?.runCalibration() }
+    @objc private func selectProfile(_ sender: NSMenuItem) {
+        if let name = sender.representedObject as? String { model.switchProfile(name) }
+    }
+
+    @objc private func newProfile() {
+        model.addProfile()
+        openSettings()
     }
 
     @objc func openSettings() {
@@ -31,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             win.title = "WacomTablet Settings"
             win.styleMask = [.titled, .closable, .miniaturizable]
             win.isReleasedWhenClosed = false
-            win.setContentSize(NSSize(width: 480, height: 460))
+            win.setContentSize(NSSize(width: 500, height: 480))
             settingsWindow = win
         }
         NSApp.activate(ignoringOtherApps: true)

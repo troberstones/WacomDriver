@@ -38,9 +38,35 @@ final class EventInjector {
 
     private let mods: SharedModifiers
 
+    // Live-swappable from the active profile.
+    var pressureCurve = PressureCurve.linear
+    var buttons = PenButtons()
+
     init(calibration: Calibration, mods: SharedModifiers) {
         self.cal = calibration
         self.mods = mods
+    }
+
+    // pen-button name -> mouse button (nil = "none").
+    private func cgButton(_ name: String) -> CGMouseButton? {
+        switch name.lowercased() {
+        case "left":            return .left
+        case "right":           return .right
+        case "middle", "center": return .center
+        default:                return nil
+        }
+    }
+
+    private func draggedType(_ b: CGMouseButton) -> CGEventType {
+        switch b {
+        case .left:  return .leftMouseDragged
+        case .right: return .rightMouseDragged
+        default:     return .otherMouseDragged
+        }
+    }
+
+    private func maskBit(_ b: CGMouseButton?) -> Int64 {
+        switch b { case .left: return 1; case .right: return 2; case .center: return 4; default: return 0 }
     }
 
     // MARK: proximity
@@ -53,10 +79,10 @@ final class EventInjector {
 
     func leaveProximity() {
         guard inProximity else { return }
-        // Release anything still held.
-        if tipDown { setButton(.left, down: false, at: lastPoint, pressure: 0) ; tipDown = false }
-        if barrel1Down { setButton(.right, down: false, at: lastPoint, pressure: 0); barrel1Down = false }
-        if barrel2Down { setButton(.center, down: false, at: lastPoint, pressure: 0); barrel2Down = false }
+        // Release anything still held (set state false BEFORE posting the up).
+        if tipDown { tipDown = false; if let b = cgButton(buttons.tip) { setButton(b, down: false, at: lastPoint, pressure: 0) } }
+        if barrel1Down { barrel1Down = false; if let b = cgButton(buttons.barrel1) { setButton(b, down: false, at: lastPoint, pressure: 0) } }
+        if barrel2Down { barrel2Down = false; if let b = cgButton(buttons.barrel2) { setButton(b, down: false, at: lastPoint, pressure: 0) } }
         inProximity = false
         postProximity(entering: false, at: lastPoint)
     }
@@ -68,39 +94,35 @@ final class EventInjector {
 
         let p = cal.screenPoint(x: s.x, y: s.y)
         lastPoint = p
-        let pressure = cal.config.pressure.apply(Double(s.pressure) / Double(WacomProtocol.pressureMax))
+        let pressure = pressureCurve.apply(Double(s.pressure) / Double(WacomProtocol.pressureMax))
         let tipNow = s.pressure > tipThreshold
 
-        // Tip transitions (primary / drawing button).
-        if tipNow && !tipDown {
-            tipDown = true
-            setButton(.left, down: true, at: p, pressure: pressure, sample: s)
-        } else if !tipNow && tipDown {
-            tipDown = false
-            setButton(.left, down: false, at: p, pressure: 0, sample: s)
+        // Each pen button maps to a configurable mouse button. Update the pen
+        // state BEFORE posting (the event reads the state via currentButtonMask,
+        // so we must not hold an exclusive inout access across the post).
+        if tipNow != tipDown {
+            tipDown = tipNow
+            if let b = cgButton(buttons.tip) { setButton(b, down: tipNow, at: p, pressure: tipNow ? pressure : 0, sample: s) }
         }
-
-        // Barrel buttons (secondary / middle). Update state BEFORE posting: the
-        // posted event reads the button state via currentButtonMask(), so we must
-        // not hold an exclusive (inout) access across the call.
         if s.barrel1 != barrel1Down {
             barrel1Down = s.barrel1
-            setButton(.right, down: s.barrel1, at: p, pressure: 0, sample: s)
+            if let b = cgButton(buttons.barrel1) { setButton(b, down: s.barrel1, at: p, pressure: 0, sample: s) }
         }
         if s.barrel2 != barrel2Down {
             barrel2Down = s.barrel2
-            setButton(.center, down: s.barrel2, at: p, pressure: 0, sample: s)
+            if let b = cgButton(buttons.barrel2) { setButton(b, down: s.barrel2, at: p, pressure: 0, sample: s) }
         }
 
-        // Motion: choose the drag/move type based on what's held.
-        let type: CGEventType
-        let button: CGMouseButton
-        if tipDown            { type = .leftMouseDragged;  button = .left }
-        else if barrel1Down   { type = .rightMouseDragged; button = .right }
-        else if barrel2Down   { type = .otherMouseDragged; button = .center }
-        else                  { type = .mouseMoved;        button = .left }
-
-        postMouse(type: type, button: button, at: p, pressure: tipDown ? pressure : 0, sample: s)
+        // Motion: drag with the highest-priority held button (tip first), else move.
+        if tipDown, let b = cgButton(buttons.tip) {
+            postMouse(type: draggedType(b), button: b, at: p, pressure: pressure, sample: s)
+        } else if barrel1Down, let b = cgButton(buttons.barrel1) {
+            postMouse(type: draggedType(b), button: b, at: p, pressure: 0, sample: s)
+        } else if barrel2Down, let b = cgButton(buttons.barrel2) {
+            postMouse(type: draggedType(b), button: b, at: p, pressure: 0, sample: s)
+        } else {
+            postMouse(type: .mouseMoved, button: .left, at: p, pressure: 0, sample: s)
+        }
     }
 
 
@@ -117,11 +139,11 @@ final class EventInjector {
     }
 
     private func currentButtonMask() -> Int64 {
-        var b: Int64 = 0
-        if tipDown { b |= 1 }
-        if barrel1Down { b |= 2 }
-        if barrel2Down { b |= 4 }
-        return b
+        var m: Int64 = 0
+        if tipDown { m |= maskBit(cgButton(buttons.tip)) }
+        if barrel1Down { m |= maskBit(cgButton(buttons.barrel1)) }
+        if barrel2Down { m |= maskBit(cgButton(buttons.barrel2)) }
+        return m
     }
 
     private func postMouse(type: CGEventType, button: CGMouseButton, at p: CGPoint, pressure: Double, sample: PenSample?) {

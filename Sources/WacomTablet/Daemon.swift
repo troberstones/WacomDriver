@@ -11,8 +11,11 @@ func runHeadless() -> Never {
     let env = ProcessInfo.processInfo.environment
     let calibration = Calibration()
     let mods = SharedModifiers()
+    let profile = ProfileStore.load().active
     let injector = EventInjector(calibration: calibration, mods: mods)
-    let padHandler = PadHandler(config: PadConfig.load(), mods: mods)
+    injector.pressureCurve = profile.pressure
+    injector.buttons = profile.penButtons
+    let padHandler = PadHandler(config: profile.pad, mods: mods)
     let engine = WacomEngine(calibration: calibration, injector: injector, padHandler: padHandler)
     engine.debug = env["WACOM_DEBUG"] == "1"
     engine.suppressInjection = env["WACOM_IDENTIFY"] == "1"
