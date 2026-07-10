@@ -1,0 +1,12 @@
+# SwiftPM build output
+/.build/
+.swiftpm/
+*.o
+*.swiftmodule
+
+# macOS
+.DS_Store
+
+# Scratch / captures
+*.log
+capture*.txt
