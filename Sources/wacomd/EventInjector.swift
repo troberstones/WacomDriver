@@ -68,7 +68,7 @@ final class EventInjector {
 
         let p = cal.screenPoint(x: s.x, y: s.y)
         lastPoint = p
-        let pressure = Double(s.pressure) / Double(WacomProtocol.pressureMax)
+        let pressure = cal.config.pressure.apply(Double(s.pressure) / Double(WacomProtocol.pressureMax))
         let tipNow = s.pressure > tipThreshold
 
         // Tip transitions (primary / drawing button).
