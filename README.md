@@ -13,32 +13,40 @@ See [PROTOCOL.md](PROTOCOL.md) for the reverse-engineered wire format.
 
 | Target | Purpose |
 |---|---|
-| `wacomd` | The driver daemon (Milestone 1: pressure pen). |
+| `WacomTablet` | The driver: menu-bar app (default) with a settings/calibration UI, or headless daemon via `--headless`. |
 | `wacom-dump` | Diagnostic: hex-dump raw reports (used to reverse the protocol). |
 | `wacom-inject-test` | Diagnostic: prove CGEvent pressure reaches apps. |
 
 ## Build
 
 ```sh
-swift build -c release
+./build.sh          # builds to /tmp then copies into .build/release
 ```
+
+`build.sh` exists because this repo's on-disk SwiftPM `build.db` hits intermittent
+SQLite I/O errors on some filesystems; it builds via a `/tmp` scratch path to
+avoid silently-skipped links. Plain `swift build -c release` works when the
+filesystem cooperates.
 
 ## Run
 
 ```sh
-.build/release/wacomd
+.build/release/WacomTablet            # menu-bar app (icon in the status bar)
+.build/release/WacomTablet --headless # no UI (for a LaunchAgent)
 ```
+
+The menu-bar icon opens **Settings…** (button mapping, pressure curve,
+calibration) and **Calibrate…**.
 
 ### Permissions (one-time)
 
-Grant the app you launch `wacomd` from (Terminal, iTerm, …):
+`WacomTablet` needs, in System Settings ▸ Privacy & Security:
 
-- **Input Monitoring** — System Settings ▸ Privacy & Security ▸ Input Monitoring
-  (lets it read the tablet)
-- **Accessibility** — System Settings ▸ Privacy & Security ▸ Accessibility
-  (lets it post pen events)
+- **Input Monitoring** — to read the tablet
+- **Accessibility** — to post pen events
 
-Then quit and relaunch that terminal so the grants take effect.
+Add the `WacomTablet` binary to both lists (a bare binary isn't auto-prompted as
+reliably as a bundled `.app`). Relaunch after granting.
 
 ### Runtime options (env vars)
 
@@ -51,27 +59,33 @@ Then quit and relaunch that terminal so the grants take effect.
 
 ## Verify it works
 
-1. Run `wacomd`; it should print "Tablet seized and switched to Wacom mode."
+1. Run `WacomTablet`; it should seize the tablet and show a menu-bar icon.
 2. Hover the pen — the cursor should track it on the Cintiq.
 3. Open a pressure-aware app (Krita, Photoshop) and draw — stroke width/opacity
    should follow pen pressure.
-4. If the pen axis is mirrored/flipped, set `WACOM_INVERT_X` / `WACOM_INVERT_Y`.
+4. Settings ▸ Calibration ▸ Run Calibration to align the tip with the cursor.
 
-If the pen misbehaves as a plain mouse after stopping the daemon, unplug/replug
-the USB cable to reset it out of Wacom mode.
+If the pen misbehaves as a plain mouse after quitting, unplug/replug the USB
+cable to reset it out of Wacom mode.
 
-## Status / roadmap
+## Config
 
-- [x] **M0** — reverse the protocol from live hardware (done; see PROTOCOL.md)
-- [x] **M1** — pressure pen: position, pressure, tilt, proximity, tip + barrel buttons
-- [x] **M3** — ExpressKeys + Touch Strips → configurable actions (see below)
-- [ ] **M2** — 4-point calibration + pressure curve
-- [ ] **M4** — LaunchAgent packaging + hot-plug handling
-- [ ] eraser support (tool-type from the proximity packet)
+Settings are edited in the app UI and stored as JSON:
 
-### ExpressKeys / Touch Strips
+- `~/.config/wacomd/pad.json` — ExpressKeys / Touch Strips
+- `~/.config/wacomd/pen.json` — calibration affine + pressure curve
 
 Buttons are `L1`–`L8` (left, top→bottom), `R1`–`R8` (right), `LT`/`RT` (center
 toggles). Defaults put ZBrush-style modifiers (Space/Shift/Ctrl/Alt) on `L5`–`L8`.
-Customize via `WACOM_DUMP_CONFIG=1 .build/release/wacomd > ~/.config/wacomd/pad.json`,
-then edit. `WACOM_IDENTIFY=1` prints each control's ID as you press it.
+`WACOM_IDENTIFY=1 .build/release/WacomTablet --headless` prints each control's ID
+as you press it.
+
+## Status / roadmap
+
+- [x] **M0** — reverse the protocol from live hardware (see PROTOCOL.md)
+- [x] **M1** — pressure pen: position, pressure, tilt, proximity, tip + barrel buttons
+- [x] **M3** — ExpressKeys + Touch Strips → configurable actions
+- [x] **M2** — 4-point calibration + pressure curve, in a menu-bar settings UI
+- [ ] **M4** — LaunchAgent packaging (.app bundle) + hot-plug handling
+- [ ] eraser support (tool-type from the proximity packet)
+- [ ] smooth hover position (jitter reduction while not drawing)

@@ -8,7 +8,7 @@
 import Foundation
 
 final class PadHandler {
-    private let config: PadConfig
+    var config: PadConfig   // live-swappable from the settings UI
     private let mods: SharedModifiers
     private let identify = ProcessInfo.processInfo.environment["WACOM_IDENTIFY"] == "1"
 

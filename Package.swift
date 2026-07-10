@@ -17,10 +17,10 @@ let package = Package(
             path: "Sources/wacom-inject-test",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
-        // Milestone 1: the real pen daemon — seize, parse, map, inject.
+        // The driver: menu-bar GUI app (default) or headless daemon (--headless).
         .executableTarget(
-            name: "wacomd",
-            path: "Sources/wacomd",
+            name: "WacomTablet",
+            path: "Sources/WacomTablet",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]

@@ -97,4 +97,45 @@ struct PadConfig: Codable {
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         return (try? enc.encode(self)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
     }
+
+    static func writePath() -> String {
+        if let p = ProcessInfo.processInfo.environment["WACOM_CONFIG"] { return p }
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? "."
+        return "\(home)/.config/wacomd/pad.json"
+    }
+
+    func save() {
+        let path = PadConfig.writePath()
+        let dir = (path as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        if let data = jsonString().data(using: .utf8) {
+            try? data.write(to: URL(fileURLWithPath: path))
+        }
+    }
+
+    // Button-ID order for the settings UI.
+    static let buttonIDs: [String] =
+        (1...8).map { "L\($0)" } + (1...8).map { "R\($0)" } + ["LT", "RT"]
+}
+
+extension KeyAction {
+    /// Human-readable form for the settings UI, e.g. "cmd+z", "hold shift", "b".
+    var display: String {
+        if type == "hold" { return "hold \(key)" }
+        let m = (mods ?? []).joined(separator: "+")
+        return m.isEmpty ? key : "\(m)+\(key)"
+    }
+
+    /// Parse "cmd+z" / "hold shift" / "b" back into an action.
+    static func parse(_ s: String) -> KeyAction? {
+        let t = s.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return nil }
+        if t.lowercased().hasPrefix("hold ") {
+            let k = String(t.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+            return k.isEmpty ? nil : KeyAction(type: "hold", mods: nil, key: k, label: nil)
+        }
+        var parts = t.split(separator: "+").map { $0.trimmingCharacters(in: .whitespaces) }
+        guard let key = parts.popLast(), !key.isEmpty else { return nil }
+        return KeyAction(type: "chord", mods: parts.isEmpty ? [] : parts, key: key, label: nil)
+    }
 }
