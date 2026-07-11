@@ -9,6 +9,38 @@ switches it into full "Wacom mode", and injects pressure/tilt tablet events.
 
 See [PROTOCOL.md](PROTOCOL.md) for the reverse-engineered wire format.
 
+## Install the prebuilt app (no build needed)
+
+Each [release](https://github.com/troberstones/WacomDriver/releases) ships a
+signed, **universal** `WacomTablet.app.zip` (runs on both Apple Silicon and
+Intel Macs). To set it up on any Mac:
+
+```sh
+# 1. Download WacomTablet.app.zip from the latest release, then:
+cd ~/Downloads
+unzip WacomTablet.app.zip
+
+# 2. It's ad-hoc signed (not notarized), so clear the Gatekeeper quarantine:
+xattr -dr com.apple.quarantine WacomTablet.app
+
+# 3. Move it into place and launch it:
+mv WacomTablet.app /Applications/
+open /Applications/WacomTablet.app
+```
+
+A pencil icon appears in the menu bar. **Grant two permissions** in System
+Settings ▸ Privacy & Security, then relaunch the app:
+
+- **Input Monitoring** → enable `WacomTablet`
+- **Accessibility** → enable `WacomTablet`
+
+**Run at login:** either add `WacomTablet.app` in System Settings ▸ General ▸
+Login Items, or — if you cloned the repo — run `./install.sh` to set up a
+LaunchAgent that also auto-restarts it (see [Install (from source)](#install-from-source)).
+
+Everything else (calibration, profiles, button mapping) is configured from the
+app's menu-bar **Settings…**.
+
 ## Targets
 
 | Target | Purpose |
@@ -28,7 +60,10 @@ SQLite I/O errors on some filesystems; it builds via a `/tmp` scratch path to
 avoid silently-skipped links. Plain `swift build -c release` works when the
 filesystem cooperates.
 
-## Install (recommended)
+## Install (from source)
+
+Prefer the [prebuilt app](#install-the-prebuilt-app-no-build-needed) unless you
+want run-at-login with auto-restart or you're hacking on the driver.
 
 ```sh
 ./install.sh
