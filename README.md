@@ -12,8 +12,7 @@ See [PROTOCOL.md](PROTOCOL.md) for the reverse-engineered wire format.
 ## Install the prebuilt app (no build needed)
 
 Each [release](https://github.com/troberstones/WacomDriver/releases) ships a
-signed, **universal** `WacomTablet.app.zip` (runs on both Apple Silicon and
-Intel Macs). To set it up on any Mac:
+signed `WacomTablet.app.zip` for **Apple Silicon** Macs. To set it up:
 
 ```sh
 # 1. Download WacomTablet.app.zip from the latest release, then:
