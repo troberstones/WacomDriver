@@ -7,21 +7,32 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
 
+    // Global tabs aren't part of the active profile — the banner must not imply
+    // otherwise.
+    private enum Tab: Hashable { case profiles, buttons, pen, pressure, tablet }
+    @State private var tab: Tab = .profiles
+    private var isGlobalTab: Bool { tab == .tablet }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Editing profile:").foregroundColor(.secondary)
-                Text(model.store.activeName).bold()
+                if isGlobalTab {
+                    Text("Global settings — shared by all profiles")
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Editing profile:").foregroundColor(.secondary)
+                    Text(model.store.activeName).bold()
+                }
                 Spacer()
             }
             .padding(.horizontal).padding(.top, 8)
 
-            TabView {
-                ProfilesTab().tabItem { Text("Profiles") }
-                ButtonsTab().tabItem { Text("Buttons") }
-                PenTab().tabItem { Text("Pen") }
-                PressureTab().tabItem { Text("Pressure") }
-                CalibrationTab().tabItem { Text("Calibration") }
+            TabView(selection: $tab) {
+                ProfilesTab().tabItem { Text("Profiles") }.tag(Tab.profiles)
+                ButtonsTab().tabItem { Text("Buttons") }.tag(Tab.buttons)
+                PenTab().tabItem { Text("Pen") }.tag(Tab.pen)
+                PressureTab().tabItem { Text("Pressure") }.tag(Tab.pressure)
+                TabletTab().tabItem { Text("Tablet") }.tag(Tab.tablet)
             }
             .padding(8)
         }
@@ -159,18 +170,6 @@ private struct PenTab: View {
                 set: { v in model.updateActive { $0.penButtons.barrel1 = v } })
             row("Upper barrel", get: { model.activeProfile.penButtons.barrel2 },
                 set: { v in model.updateActive { $0.penButtons.barrel2 = v } })
-
-            Divider().padding(.vertical, 4)
-            Text("Hover smoothing").font(.headline)
-            Text("Global (all profiles). Steadies the cursor while hovering; drawing strokes stay unfiltered.")
-                .font(.caption).foregroundColor(.secondary)
-            HStack {
-                Text("Off")
-                Slider(value: Binding(
-                    get: { model.penConfig.hoverSmoothing },
-                    set: { model.setHoverSmoothing($0) }), in: 0...1)
-                Text("Max")
-            }
             Spacer()
         }
         .padding()
@@ -240,15 +239,15 @@ private struct CurvePreview: View {
     }
 }
 
-// MARK: - Calibration (global)
+// MARK: - Tablet (global — not part of any profile)
 
-private struct CalibrationTab: View {
+private struct TabletTab: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Screen calibration").font(.headline)
-            Text("Global (shared by all profiles). Aligns the pen tip with the cursor on the Cintiq. You tap four targets, one near each corner.")
+            Text("Aligns the pen tip with the cursor on the Cintiq. You tap four targets, one near each corner.")
                 .font(.caption).foregroundColor(.secondary)
 
             Text(model.penConfig.affine == nil ? "Status: uncalibrated (linear map)" : "Status: calibrated ✓")
@@ -259,9 +258,20 @@ private struct CalibrationTab: View {
                 Button("Clear calibration") { model.setCalibration(affine: nil) }
             }
 
-            Divider()
             Text("Display \(model.calibration.displayID): \(Int(model.calibration.screenBounds.width))×\(Int(model.calibration.screenBounds.height))")
                 .font(.caption).foregroundColor(.secondary)
+
+            Divider().padding(.vertical, 4)
+            Text("Hover smoothing").font(.headline)
+            Text("Steadies the cursor while hovering; drawing strokes stay unfiltered.")
+                .font(.caption).foregroundColor(.secondary)
+            HStack {
+                Text("Off")
+                Slider(value: Binding(
+                    get: { model.penConfig.hoverSmoothing },
+                    set: { model.setHoverSmoothing($0) }), in: 0...1)
+                Text("Max")
+            }
             Spacer()
         }
         .padding()
