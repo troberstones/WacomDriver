@@ -15,6 +15,7 @@ func runHeadless() -> Never {
     let injector = EventInjector(calibration: calibration, mods: mods)
     injector.pressureCurve = profile.pressure
     injector.buttons = profile.penButtons
+    injector.hoverSmoothing = calibration.config.hoverSmoothing
     let padHandler = PadHandler(config: profile.pad, mods: mods)
     let engine = WacomEngine(calibration: calibration, injector: injector, padHandler: padHandler)
     engine.debug = env["WACOM_DEBUG"] == "1"

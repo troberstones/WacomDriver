@@ -28,15 +28,40 @@ SQLite I/O errors on some filesystems; it builds via a `/tmp` scratch path to
 avoid silently-skipped links. Plain `swift build -c release` works when the
 filesystem cooperates.
 
-## Run
+## Install (recommended)
+
+```sh
+./install.sh
+```
+
+This builds the driver, assembles a proper `WacomTablet.app` (menu-bar only, no
+Dock icon), installs it to `/Applications`, and loads a LaunchAgent so it **runs
+at login and restarts on crash**. Unplug/replug is handled automatically.
+
+Permissions attach to the signed bundle. By default it's **ad-hoc signed** —
+stable until the next rebuild, after which you re-grant the two permissions. For
+permissions that survive rebuilds, make a self-signed *Code Signing* certificate
+in Keychain once and run `SIGN_IDENTITY="Your Cert Name" ./install.sh`.
+
+Manage it:
+
+```sh
+tail -f ~/Library/Logs/com.chwacom.WacomTablet.log     # logs
+launchctl bootout   gui/$(id -u)/com.chwacom.WacomTablet  # stop
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.chwacom.WacomTablet.plist  # start
+./uninstall.sh                                         # remove (keeps config)
+```
+
+## Run from the build tree (dev)
 
 ```sh
 .build/release/WacomTablet            # menu-bar app (icon in the status bar)
-.build/release/WacomTablet --headless # no UI (for a LaunchAgent)
+.build/release/WacomTablet --headless # no UI
 ```
 
-The menu-bar icon opens **Settings…** (button mapping, pressure curve,
-calibration) and **Calibrate…**.
+The menu-bar icon opens **Settings…** (profiles, button mapping, pen buttons,
+pressure curve, hover smoothing, calibration) and **Calibrate…**. Don't run this
+manually while the LaunchAgent copy is loaded — both would fight over the tablet.
 
 ### Permissions (one-time)
 
@@ -45,8 +70,9 @@ calibration) and **Calibrate…**.
 - **Input Monitoring** — to read the tablet
 - **Accessibility** — to post pen events
 
-Add the `WacomTablet` binary to both lists (a bare binary isn't auto-prompted as
-reliably as a bundled `.app`). Relaunch after granting.
+With `./install.sh` you grant these to `WacomTablet.app`; the LaunchAgent keeps
+it alive so it starts working right after you approve. Running the bare binary
+from the build tree, add that binary to both lists instead.
 
 ### Runtime options (env vars)
 
@@ -72,8 +98,9 @@ cable to reset it out of Wacom mode.
 
 Settings are edited in the app UI and stored as JSON:
 
-- `~/.config/wacomd/pad.json` — ExpressKeys / Touch Strips
-- `~/.config/wacomd/pen.json` — calibration affine + pressure curve
+- `~/.config/wacomd/profiles.json` — per-app profiles (button mapping, pen
+  buttons, pressure curve); switch the active one from the menu bar
+- `~/.config/wacomd/pen.json` — global calibration affine + hover smoothing
 
 Buttons are `L1`–`L8` (left, top→bottom), `R1`–`R8` (right), `LT`/`RT` (center
 toggles). Defaults put ZBrush-style modifiers (Space/Shift/Ctrl/Alt) on `L5`–`L8`.
@@ -86,6 +113,7 @@ as you press it.
 - [x] **M1** — pressure pen: position, pressure, tilt, proximity, tip + barrel buttons
 - [x] **M3** — ExpressKeys + Touch Strips → configurable actions
 - [x] **M2** — 4-point calibration + pressure curve, in a menu-bar settings UI
-- [ ] **M4** — LaunchAgent packaging (.app bundle) + hot-plug handling
-- [ ] eraser support (tool-type from the proximity packet)
-- [ ] smooth hover position (jitter reduction while not drawing)
+- [x] profiles (per-app configs) + pen-button assignment
+- [x] **M4** — `.app` bundle + LaunchAgent (`install.sh`) + hot-plug handling
+- [x] eraser support (tool-type from the proximity packet)
+- [x] hover smoothing (1€ filter; jitter reduction while not drawing)

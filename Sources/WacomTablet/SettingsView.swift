@@ -159,6 +159,18 @@ private struct PenTab: View {
                 set: { v in model.updateActive { $0.penButtons.barrel1 = v } })
             row("Upper barrel", get: { model.activeProfile.penButtons.barrel2 },
                 set: { v in model.updateActive { $0.penButtons.barrel2 = v } })
+
+            Divider().padding(.vertical, 4)
+            Text("Hover smoothing").font(.headline)
+            Text("Global (all profiles). Steadies the cursor while hovering; drawing strokes stay unfiltered.")
+                .font(.caption).foregroundColor(.secondary)
+            HStack {
+                Text("Off")
+                Slider(value: Binding(
+                    get: { model.penConfig.hoverSmoothing },
+                    set: { model.setHoverSmoothing($0) }), in: 0...1)
+                Text("Max")
+            }
             Spacer()
         }
         .padding()

@@ -51,6 +51,10 @@ final class WacomEngine {
         IOHIDManagerRegisterDeviceMatchingCallback(mgr, { ctx, _, _, device in
             Unmanaged<WacomEngine>.fromOpaque(ctx!).takeUnretainedValue().deviceMatched(device)
         }, ctx)
+        // Hot-plug: on unplug, drop the stale handle so a replug re-seizes cleanly.
+        IOHIDManagerRegisterDeviceRemovalCallback(mgr, { ctx, _, _, device in
+            Unmanaged<WacomEngine>.fromOpaque(ctx!).takeUnretainedValue().deviceRemoved(device)
+        }, ctx)
         IOHIDManagerScheduleWithRunLoop(mgr, runLoop, CFRunLoopMode.defaultMode.rawValue)
         let status = IOHIDManagerOpen(mgr, IOOptionBits(kIOHIDOptionsTypeSeizeDevice))
         if status != kIOReturnSuccess {
@@ -80,6 +84,13 @@ final class WacomEngine {
         onReady?()
     }
 
+    private func deviceRemoved(_ removed: IOHIDDevice) {
+        guard removed == device else { return }
+        injector.leaveProximity()   // release any held buttons / proximity
+        device = nil
+        if debug { print("DTK-2100 unplugged; waiting for replug…") }
+    }
+
     private func switchToWacomMode(_ device: IOHIDDevice) {
         let payload: [UInt8] = [0x02, 0x02]
         let status = payload.withUnsafeBufferPointer {
@@ -98,8 +109,9 @@ final class WacomEngine {
             if debug { print("pen x=\(s.x) y=\(s.y) p=\(s.pressure) tilt=(\(s.tiltX),\(s.tiltY)) b1=\(s.barrel1) b2=\(s.barrel2)") }
             rawPenHook?(s)
             if !suppressInjection { injector.handle(s) }
-        case .proximityIn:
-            if !suppressInjection { injector.enterProximity() }
+        case .proximityIn(let tool):
+            if debug { print("proximity in: tool=\(tool)") }
+            if !suppressInjection { injector.enterProximity(tool: tool) }
         case .proximityOut:
             if !suppressInjection { injector.leaveProximity() }
         case .pad(let pad):

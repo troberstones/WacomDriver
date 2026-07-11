@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.chwacom.WacomTablet</string>
+
+    <!-- __APP__ is replaced by install.sh with the installed .app path. Runs the
+         menu-bar GUI (not --headless) so the status-bar item and Settings stay
+         available; the app is LSUIElement so there's no Dock icon. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__APP__/Contents/MacOS/WacomTablet</string>
+    </array>
+
+    <!-- Start at login and relaunch if it ever exits (e.g. crash). -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- GUI session only — it posts CGEvents and shows a menu-bar item. -->
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <key>StandardOutPath</key>
+    <string>__LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__LOG__</string>
+</dict>
+</plist>

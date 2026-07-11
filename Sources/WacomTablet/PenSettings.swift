@@ -46,6 +46,8 @@ struct PenConfig: Codable {
     var affine: [Double]? = nil
     var tabletMaxX = 87200.0
     var tabletMaxY = 65600.0
+    // Cursor smoothing strength (0…1) applied only while hovering. 0 = off.
+    var hoverSmoothing = 0.0
 
     static func path() -> String {
         if let p = ProcessInfo.processInfo.environment["WACOM_PEN_CONFIG"] { return p }

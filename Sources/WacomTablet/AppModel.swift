@@ -29,6 +29,7 @@ final class AppModel: ObservableObject {
         padHandler = PadHandler(config: st.active.pad, mods: mods)
         engine = WacomEngine(calibration: calibration, injector: injector, padHandler: padHandler)
         engine.onReady = { [weak self] in DispatchQueue.main.async { self?.ready = true } }
+        injector.hoverSmoothing = pen.hoverSmoothing
         applyActiveProfile()
         engine.start()
     }
@@ -108,5 +109,11 @@ final class AppModel: ObservableObject {
     func setCalibration(affine: [Double]?) {
         penConfig.affine = affine
         applyPen()
+    }
+
+    func setHoverSmoothing(_ v: Double) {
+        penConfig.hoverSmoothing = v
+        injector.hoverSmoothing = v
+        penConfig.save()
     }
 }

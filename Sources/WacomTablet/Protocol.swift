@@ -26,9 +26,17 @@ struct PadSample {
     var rightStrip: Int   // one-hot position across d3:d4, 0..15 (-1 = untouched)
 }
 
+// Which end of the pen is in range. Decoded from the tool id in the
+// proximity-enter packet; apps switch to the eraser tool when told the pointer
+// is an eraser.
+enum WacomTool {
+    case pen
+    case eraser
+}
+
 enum WacomReport {
     case penData(PenSample)
-    case proximityIn
+    case proximityIn(WacomTool)
     case proximityOut
     case pad(PadSample)
     case other
@@ -71,7 +79,21 @@ enum WacomProtocol {
         if d[1] == 0x80 && d[2] == 0 && d[3] == 0 && d[4] == 0 && d[5] == 0 {
             return .proximityOut
         }
-        return .proximityIn
+        return .proximityIn(toolFromEnterPacket(d))
+    }
+
+    /// Decode the tool id from a proximity-enter packet ((d[1] & 0xfc) == 0xc0)
+    /// and classify it as pen or eraser. Formula matches Linux `input-wacom`
+    /// `wacom_intuos_inout()`. Every Wacom eraser id ends in nibble 0xa
+    /// (0x82a, 0x84a, 0x85a, 0x91a, 0xd1a, 0x0fa); pens end in other nibbles
+    /// (this device's Grip Pen reports 0x802).
+    private static func toolFromEnterPacket(_ d: [UInt8]) -> WacomTool {
+        guard (d[1] & 0xfc) == 0xc0 else { return .pen }
+        let id = (Int(d[2]) << 4)
+            | (Int(d[3]) >> 4)
+            | ((Int(d[7]) & 0x0f) << 20)
+            | ((Int(d[8]) & 0xf0) << 12)
+        return (id & 0x0f) == 0x0a ? .eraser : .pen
     }
 
     private static func parsePad(_ d: [UInt8]) -> WacomReport {

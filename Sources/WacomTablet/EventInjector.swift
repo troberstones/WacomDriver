@@ -13,7 +13,6 @@ final class EventInjector {
     // the proximity-enter event (which registers the tool in Qt/Krita) and every
     // subsequent pointer event so apps link them.
     private let deviceID: Int64 = 5303613955435230461
-    private let vendorPointerType: Int64 = 0x802 // Wacom general stylus
     private let vendorID: Int64 = 0x056a
     private let tipThreshold = 6          // pressure above this == tip touching
 
@@ -29,18 +28,30 @@ final class EventInjector {
         0x100 | // tilt Y
         0x400   // pressure
 
+    // NX tablet pointer types (IOLLEvent.h): 1 = pen, 3 = eraser.
+    private let pointerTypePen: Int64 = 1
+    private let pointerTypeEraser: Int64 = 3
+    private let vendorPointerTypePen: Int64 = 0x0802   // Wacom Grip Pen
+    private let vendorPointerTypeEraser: Int64 = 0x082a // Wacom eraser
+
     // Button state so we emit clean down/up transitions.
     private var tipDown = false
     private var barrel1Down = false
     private var barrel2Down = false
     private var inProximity = false
+    private var currentTool: WacomTool = .pen
     private var lastPoint = CGPoint.zero
+    private var smoother = PointSmoother(amount: 0)
 
     private let mods: SharedModifiers
 
     // Live-swappable from the active profile.
     var pressureCurve = PressureCurve.linear
     var buttons = PenButtons()
+    /// Cursor smoothing strength (0…1) applied only while hovering. 0 = off.
+    var hoverSmoothing: Double = 0 {
+        didSet { smoother.setAmount(hoverSmoothing) }
+    }
 
     init(calibration: Calibration, mods: SharedModifiers) {
         self.cal = calibration
@@ -71,9 +82,11 @@ final class EventInjector {
 
     // MARK: proximity
 
-    func enterProximity() {
+    func enterProximity(tool: WacomTool = .pen) {
         guard !inProximity else { return }
         inProximity = true
+        currentTool = tool
+        smoother.reset()
         postProximity(entering: true, at: lastPoint)
     }
 
@@ -92,10 +105,21 @@ final class EventInjector {
     func handle(_ s: PenSample) {
         if !inProximity { enterProximity() }
 
-        let p = cal.screenPoint(x: s.x, y: s.y)
-        lastPoint = p
+        let raw = cal.screenPoint(x: s.x, y: s.y)
         let pressure = pressureCurve.apply(Double(s.pressure) / Double(WacomProtocol.pressureMax))
         let tipNow = s.pressure > tipThreshold
+
+        // Smooth only while hovering; a live stroke uses the raw points so the
+        // ink tracks the nib exactly. Reset on tip-down so the next hover starts
+        // clean (no lag catching up from the last stroke).
+        let p: CGPoint
+        if tipNow {
+            smoother.reset()
+            p = raw
+        } else {
+            p = smoother.filter(raw, at: CFAbsoluteTimeGetCurrent())
+        }
+        lastPoint = p
 
         // Each pen button maps to a configurable mouse button. Update the pen
         // state BEFORE posting (the event reads the state via currentButtonMask,
@@ -179,11 +203,15 @@ final class EventInjector {
         e.setIntegerValueField(.tabletProximityEventPointerID, value: 0)
         e.setIntegerValueField(.tabletProximityEventDeviceID, value: deviceID)
         e.setIntegerValueField(.tabletProximityEventSystemTabletID, value: 0)
-        e.setIntegerValueField(.tabletProximityEventVendorPointerType, value: 0x0802) // Wacom pen
+        let isEraser = currentTool == .eraser
+        e.setIntegerValueField(.tabletProximityEventVendorPointerType,
+                               value: isEraser ? vendorPointerTypeEraser : vendorPointerTypePen)
         e.setIntegerValueField(.tabletProximityEventVendorPointerSerialNumber, value: 1)
         e.setIntegerValueField(.tabletProximityEventVendorUniqueID, value: 1)
         e.setIntegerValueField(.tabletProximityEventCapabilityMask, value: capabilityMask)
-        e.setIntegerValueField(.tabletProximityEventPointerType, value: 1) // NX_TABLET_POINTER_PEN
+        // Pointer type is what apps read to switch to the eraser tool.
+        e.setIntegerValueField(.tabletProximityEventPointerType,
+                               value: isEraser ? pointerTypeEraser : pointerTypePen)
         e.setIntegerValueField(.tabletProximityEventEnterProximity, value: entering ? 1 : 0)
         e.post(tap: .cghidEventTap)
     }

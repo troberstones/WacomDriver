@@ -59,6 +59,19 @@ Notes:
   "pen entered, deviceID = …". Emit a CGEvent tablet **proximity-in**.
 - Leave: `02 80 00 00 00 00 00 00 00 00` — emit **proximity-out**.
 
+**Tool id / eraser detection.** The enter packet (`(d[1] & 0xfc) == 0xc0`)
+encodes the tool id (matches `input-wacom` `wacom_intuos_inout()`):
+
+```
+id = (d[2] << 4) | (d[3] >> 4) | ((d[7] & 0x0f) << 20) | ((d[8] & 0xf0) << 12)
+```
+
+For the capture above that's `0x100802` → `id & 0xFFFFF = 0x802`, Wacom's Grip
+Pen. Every Wacom eraser id ends in nibble `0xa` (`0x82a`, `0x84a`, `0x85a`,
+`0x91a`, `0xd1a`, `0x0fa`), so `(id & 0x0f) == 0x0a` classifies the pen's eraser
+end; the driver then reports `NX_TABLET_POINTER_ERASER` in the proximity event so
+apps switch to their eraser tool.
+
 ## Pad report (ID `0x0c`) — ExpressKeys & Touch Strips
 
 Report is `0c d1 d2 d3 d4 d5 d6 d7 d8 d9`. Fully decoded from a timestamped,
