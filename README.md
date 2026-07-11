@@ -59,6 +59,16 @@ SQLite I/O errors on some filesystems; it builds via a `/tmp` scratch path to
 avoid silently-skipped links. Plain `swift build -c release` works when the
 filesystem cooperates.
 
+### Cutting a release
+
+```sh
+./release.sh v1.1.0     # build → sign → zip WacomTablet.app → publish to GitHub
+```
+
+Builds the arm64 app, ad-hoc signs and zips it, and uploads it to the `v1.1.0`
+GitHub release (creating it, or replacing the asset if it exists). Pass
+`SIGN_IDENTITY="Your Cert"` for a signature that survives rebuilds.
+
 ## Install (from source)
 
 Prefer the [prebuilt app](#install-the-prebuilt-app-no-build-needed) unless you
