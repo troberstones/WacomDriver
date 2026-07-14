@@ -42,7 +42,12 @@ struct PenConfig: Codable {
     var invertX = false
     var invertY = false
     var displayIndex: Int? = nil
-    // raw→screen affine [ax, bx, cx, ay, by, cy]; nil = uncalibrated linear map.
+    // Stable identity of the target display (EDID vendor/model/serial). Survives
+    // reconnects and display-list reordering, unlike displayIndex. nil = auto.
+    var displayVendor: UInt32? = nil
+    var displayModel: UInt32? = nil
+    var displaySerial: UInt32? = nil
+    // raw→display-local affine [ax, bx, cx, ay, by, cy]; nil = uncalibrated linear map.
     var affine: [Double]? = nil
     var tabletMaxX = 87200.0
     var tabletMaxY = 65600.0

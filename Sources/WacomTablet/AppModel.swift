@@ -111,6 +111,18 @@ final class AppModel: ObservableObject {
         applyPen()
     }
 
+    /// Choose which display the pen maps to. nil = auto-detect (Cintiq heuristic,
+    /// else main). Selecting a display stores its stable identity and re-picks.
+    func setTargetDisplay(_ info: DisplayInfo?) {
+        penConfig.displayVendor = info?.vendor
+        penConfig.displayModel = info?.model
+        penConfig.displaySerial = info?.serial
+        // A stable identity supersedes any legacy/env index.
+        penConfig.displayIndex = nil
+        applyPen()
+        objectWillChange.send()   // calibration.displayID/bounds changed, but aren't @Published
+    }
+
     func setHoverSmoothing(_ v: Double) {
         penConfig.hoverSmoothing = v
         injector.hoverSmoothing = v

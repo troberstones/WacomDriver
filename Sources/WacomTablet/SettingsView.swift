@@ -241,13 +241,71 @@ private struct CurvePreview: View {
 
 // MARK: - Tablet (global — not part of any profile)
 
+// Which display the pen maps to, as a Picker tag. Identity is the EDID triple so
+// the choice survives reconnects and display-list reordering.
+private enum DisplaySelection: Hashable {
+    case auto
+    case explicit(vendor: UInt32, model: UInt32, serial: UInt32)
+}
+
 private struct TabletTab: View {
     @EnvironmentObject var model: AppModel
 
+    private var displays: [DisplayInfo] { Calibration.activeDisplays() }
+
+    private var currentSelection: DisplaySelection {
+        if let v = model.penConfig.displayVendor,
+           let m = model.penConfig.displayModel,
+           let s = model.penConfig.displaySerial {
+            return .explicit(vendor: v, model: m, serial: s)
+        }
+        return .auto
+    }
+
+    private func select(_ sel: DisplaySelection) {
+        switch sel {
+        case .auto:
+            model.setTargetDisplay(nil)
+        case let .explicit(v, m, s):
+            let info = displays.first { $0.vendor == v && $0.model == m && $0.serial == s }
+            model.setTargetDisplay(info)
+        }
+    }
+
+    // The active target, and whether it's a mirror (pen also drives the other screens).
+    private var activeDisplay: DisplayInfo? {
+        displays.first { $0.id == model.calibration.displayID }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            Text("Target display").font(.headline)
+            Text("Which screen the pen maps to. Auto-detect finds the Cintiq; pick it explicitly when it's an extended (non-mirrored) second display.")
+                .font(.caption).foregroundColor(.secondary)
+
+            Picker("Display", selection: Binding(
+                get: { currentSelection }, set: { select($0) })) {
+                Text("Auto-detect").tag(DisplaySelection.auto)
+                ForEach(displays) { d in
+                    Text(d.menuLabel)
+                        .tag(DisplaySelection.explicit(vendor: d.vendor, model: d.model, serial: d.serial))
+                }
+            }
+            .labelsHidden()
+
+            if let d = activeDisplay {
+                Text("Mapping to \(d.name) at (\(Int(d.bounds.minX)), \(Int(d.bounds.minY))), \(Int(d.bounds.width))×\(Int(d.bounds.height))")
+                    .font(.caption).foregroundColor(.secondary)
+                if d.isMirrored {
+                    Text("This display is mirrored — the pen also tracks on the displays it mirrors.")
+                        .font(.caption).foregroundColor(.orange)
+                }
+            }
+
+            Divider().padding(.vertical, 4)
+
             Text("Screen calibration").font(.headline)
-            Text("Aligns the pen tip with the cursor on the Cintiq. You tap four targets, one near each corner.")
+            Text("Aligns the pen tip with the cursor on the Cintiq. You tap four targets, one near each corner. Recalibrate after changing the target display.")
                 .font(.caption).foregroundColor(.secondary)
 
             Text(model.penConfig.affine == nil ? "Status: uncalibrated (linear map)" : "Status: calibrated ✓")
@@ -257,9 +315,6 @@ private struct TabletTab: View {
             if model.penConfig.affine != nil {
                 Button("Clear calibration") { model.setCalibration(affine: nil) }
             }
-
-            Text("Display \(model.calibration.displayID): \(Int(model.calibration.screenBounds.width))×\(Int(model.calibration.screenBounds.height))")
-                .font(.caption).foregroundColor(.secondary)
 
             Divider().padding(.vertical, 4)
             Text("Hover smoothing").font(.headline)

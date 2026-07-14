@@ -2,7 +2,9 @@
 //
 // Shows a target near each corner; the user taps each with the pen. We capture
 // the raw tablet coordinates at each tap, pair them with the target's known
-// screen point, and solve a raw→screen affine transform.
+// display-local screen point, and solve a raw→local affine transform. Keeping the
+// fit display-local (offset-free) lets the calibration survive the Cintiq moving
+// in the display arrangement — Calibration.screenPoint re-adds the live origin.
 
 import AppKit
 
@@ -21,7 +23,10 @@ final class CalibrationController {
     private var targets: [CGPoint] = []                       // global top-left points
     private var captured: [(raw: CGPoint, screen: CGPoint)] = []
     private var index = 0
-    private var armed = true                                  // require a release between taps
+    // Require the pen to be lifted before a tap counts — including before the
+    // FIRST one, so a pen already touching (or a stale sample) when the window
+    // opens can't silently consume target 1 with a garbage coordinate.
+    private var armed = false
 
     init(model: AppModel) { self.model = model }
 
@@ -62,7 +67,12 @@ final class CalibrationController {
         guard armed else { return }
         armed = false
 
-        captured.append((raw: CGPoint(x: s.x, y: s.y), screen: targets[index]))
+        // Store the target in DISPLAY-LOCAL coords (subtract the display's global
+        // origin) so the solved affine is independent of where the Cintiq sits in
+        // the arrangement; Calibration.screenPoint re-adds the live origin.
+        let b = model.calibration.screenBounds
+        let localTarget = CGPoint(x: targets[index].x - b.minX, y: targets[index].y - b.minY)
+        captured.append((raw: CGPoint(x: s.x, y: s.y), screen: localTarget))
         index += 1
         if index >= targets.count {
             finish()
